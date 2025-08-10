@@ -1,0 +1,63 @@
+name: Update binaries release
+
+on: workflow_dispatch
+
+jobs:
+  recreate_release:
+    name: Recreate binaries release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Delete current binaries release
+        run: gh release delete Binaries --yes --cleanup-tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create new binaries release
+        run: gh release create Binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_upload:
+    name: Build and upload to binaries release for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: recreate_release
+
+    # needed for uploading to release
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: crackme
+            asset_name: crackme-linux
+          - os: windows-latest
+            artifact_name: crackme.exe
+            asset_name: crackme-windows.exe
+          - os: macos-latest
+            artifact_name: crackme
+            asset_name: crackme-macos
+
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: gcc crackme.c -o crackme -g2 -Og -gdwarf-4 -fno-stack-protector
+
+      - name: Upload to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
+          tag: Binaries
